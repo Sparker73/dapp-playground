@@ -1,32 +1,72 @@
-import React from "react";
-import type { AppProps } from "next/app";
-import dynamic from "next/dynamic";
-import { ConnectionProvider } from "@solana/wallet-adapter-react";
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
+import { PhantomWalletAdapter, BraveWalletAdapter, SolflareWalletAdapter, SlopeWalletAdapter, Coin98WalletAdapter, SolongWalletAdapter, SolletWalletAdapter, SolletExtensionWalletAdapter, LedgerWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { clusterApiUrl } from '@solana/web3.js';
+import type { AppProps } from 'next/app';
+import { FC, useEffect } from 'react';
+import React, { useMemo } from 'react';
+import useLocalStorage from 'hooks/useLocalStorage';
+import Header from 'components/Header';
+import Footer from 'components/Footer';
 
-import "tailwindcss/tailwind.css";
-import "../styles/globals.css";
-import "../styles/App.css";
+// Use require instead of import since order matters
+require('@solana/wallet-adapter-react-ui/styles.css');
+require('../styles/index.scss');
 
-// set custom RPC server endpoint for the final website
-// const endpoint = "https://explorer-api.devnet.solana.com";
-// const endpoint = "http://127.0.0.1:8899";
-const endpoint = "https://ssc-dao.genesysgo.net";
+const App: FC<AppProps> = ({ Component, pageProps }) => {
+    const [theme, updateTheme] = useLocalStorage<string>('theme', 'dark');
 
-const WalletProvider = dynamic(
-  () => import("../contexts/ClientWalletProvider"),
-  {
-    ssr: false,
-  }
-);
+    // Can be set to 'devnet', 'testnet', or 'mainnet-beta'
+    const network = WalletAdapterNetwork.Devnet;
 
-function MyApp({ Component, pageProps }: AppProps) {
-  return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider>
-        <Component {...pageProps} />
-      </WalletProvider>
-    </ConnectionProvider>
-  );
-}
+    // You can also provide a custom RPC endpoint
+    const endpoint = useMemo(() => clusterApiUrl(network), [network]);
 
-export default MyApp;
+    const wallets = useMemo(
+        () => [
+            new PhantomWalletAdapter(),
+            new BraveWalletAdapter(),
+            new SolflareWalletAdapter({ network }),
+            new SlopeWalletAdapter(),
+            new Coin98WalletAdapter(),
+            new SolongWalletAdapter(),
+            new SolletWalletAdapter(),
+            new SolletExtensionWalletAdapter(),
+            new LedgerWalletAdapter(),
+        ],
+        []
+    );
+
+    // Use the preferred theme or dark as a default
+    useEffect(() => {
+        const applyTheme = (name?: string) => {
+            const theme = name || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+            updateTheme(theme);
+        }
+
+        applyTheme(theme);
+        return () => { };
+    }, [theme, updateTheme]);
+
+    return (
+        <ConnectionProvider endpoint={endpoint}>
+            <WalletProvider wallets={wallets} autoConnect>
+                <WalletModalProvider>
+                    <div className="App">
+                        <Header />
+                        <main className="main">
+                            <div className="container">
+                                <Component {...pageProps} />
+                            </div>
+                        </main>
+                        <Footer />
+                    </div>
+                </WalletModalProvider>
+            </WalletProvider>
+        </ConnectionProvider>
+    );
+};
+
+export default App;
